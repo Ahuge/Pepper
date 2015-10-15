@@ -1,76 +1,50 @@
-__author__ = 'Alex'
+from __future__ import unicode_literals
 import sys
-import os, types
-from pprint import pprint
-import rules
 import logging
+
+import click
+
+import utils
+
+__author__ = 'Alex'
 logging.basicConfig(level=logging.DEBUG)
 
 
-def bak_file(path):
-    name, ext = os.path.splitext(path)
-    new_ext = ".bak"
-    return name + new_ext
+@click.command()
+@click.argument('source')
+@click.option('--d', default=None, type=click.STRING, help="Destination python file.")
+@click.option('--backup', default=True, type=click.BOOL, help="Will backup the python file if --d was not set.")
+@click.option('--write', default=True, type=click.BOOL, help="Writes the file out.")
+@click.option('--rules', default=None, type=click.STRING, help="Optionally load the rules from this directory.")
+def pepperoni(source, d, backup, write, rules):
+    """
+    Pepperoni will read the python file SOURCE and modify it to match PEP008 standards
+    """
 
-
-def tag(name):
-    return "# Modified by %s\n" % name
-
-
-def remove_header(lines, header):
-    for line in lines:
-        if line[0] == "#":
-            if line != tag(header):
-                yield line
-        else:
-            yield line
-
-
-def parse_args():
-    python_file = None
-    is_first = True
-    for arg in sys.argv:
-        if is_first:
-            is_first = False
-            continue
-        elif os.path.exists(arg):
-            if os.path.splitext(arg)[1] == ".py":
-                # Is a py
-                python_file = arg
-
-    return python_file, sys.argv[1:]
-
-
-def parse_mod(mod, bip):
-    lines = remove_header(bip, mod.__name__)
-    yield tag(mod.__name__)
-    for line in lines:
-        if isinstance(mod, types.ModuleType):
-            new = mod.main(line)
-            yield new
-
-
-def parse_file(binary_data):
-    new_lines = binary_data
-    mods = rules.__all__
-    for mod in mods:
-        new_lines = parse_mod(mod, new_lines)
-        logging.debug("Modified with %s" % mod.__name__)
-    return new_lines
-
-if __name__ == "__main__":
-    py_file, args = parse_args()
-
-    if py_file:
-        data = None
-        with open(py_file, "rb") as fh:
+    if source:
+        with open(source, "rb") as fh:
             data = fh.readlines()
 
         if data:
-            corrected = parse_file(data)
-            with open(bak_file(py_file), "wb") as fh:
-                fh.writelines(data)
-            with open(py_file, "wb") as fh:
-                fh.writelines(corrected)
+            corrected = utils.parse_file(data, rwd=rules)
+            if d:
+                dest = d
+            else:
+                if backup:
+                    dest = utils.bak_file(source)
+                else:
+                    dest = source
+
+            if write:
+
+                with open(source, "wb") as fh:
+                    fh.writelines(data)
+                with open(dest, "wb") as fh:
+                    fh.writelines(corrected)
+            else:
+                sys.stderr(corrected)
     else:
-        print "Warning: No python file passed. Nothing was changed. Arg list was %s" % args
+        print "Warning: No python file passed. Nothing was changed."
+
+if __name__ == "__main__":
+    pepperoni(None, None, None, None)
